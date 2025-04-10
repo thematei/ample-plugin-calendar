@@ -3,5 +3,5 @@
     "module": "esnext",
     "target": "esnext"
   },
-  "include": ["lib/**/*", "lib/__tests__/plugin.test.js"]
+  "include": ["lib/**/*", "/__tests__/plugin.test.js"]
 }
