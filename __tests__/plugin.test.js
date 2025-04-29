@@ -29,10 +29,8 @@ describe("This here plugin,", () => {
       let notes = await app.filterNotes({tag: selectedTag});
       //call plugin
       await plugin.onEmbedCall(app, "navigate", date, true, dayName);
-
-      const newNotes = await app.filterNotes({tag: selectedTag});
-
       //valid note was created
+      const newNotes = await app.filterNotes({tag: selectedTag});
       expect(newNotes.length).toBe(jotCount + 1);
       expect(plugin._state.jots.length).toBe(jotCount + 1);
       let newJot = plugin._state.jots.at(plugin._state.jots.length - 1);
