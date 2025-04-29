@@ -16,7 +16,7 @@ describe("This here plugin,", () => {
     });
 
     //   Shift-navigating to note: name reflects day correctly; tags are being saved properly;
-    it("should create a new note with selected tags", async () => {
+    it("should create a new note with selected tag", async () => {
       //set up environment
       const date = new Date("March 31 2025");
       const dayName = "March 31st, 2025";
@@ -46,22 +46,38 @@ describe("This here plugin,", () => {
       });
       expect(newlyCreatedNote.uuid).toBe(newJot.uuid);
       //test that uuid of new note matches uuid of jot
-      await app.findNote({uuid: newJot.uuid});
+      const foundNote = await app.findNote({uuid: newJot.uuid});
+      expect(foundNote.uuid).toBe(newlyCreatedNote.uuid);
+
+      //test that tags match exactly
+        //test that note has all tags
+      expect(foundNote.tags).toContainEqual(selectedTag);
+        //test that note does not have additional tags
+      const tagsRemoved = foundNote.tags.filter((tag) => !(tag == selectedTag));
+      expect(tagsRemoved.length).toBe(0);
+
+      //TODO test for multiple tags
     });
   });
 
   describe("with an existing daily jot", () => {
-  beforeEach(() => {
-    const app = mockApp();
+    var app;
+
+    beforeEach(() => {
+      app = mockApp();
       app.createNote({uuid: "whatever"});
     });
 
     it("shouldn't create a new note if note exists", async () => {
     
-      const date = {};
+      const date = new Date("March 31 2025");
       const dayName = "";
+      const selectedTag = "daily-jots";
 
-      await plugin.onEmbedCall(app, "navigate", date, true, dayName);
+      app.settings[plugin._constants.settings.TAGS] = selectedTag;
+      const newNotes = await plugin.onEmbedCall(app, "navigate", date, true, dayName).then(() => {
+        return app.filterNotes({tags: [selectedTag]});
+      });
 
       expect(newNotes.length).toBe(jotCount);
     
