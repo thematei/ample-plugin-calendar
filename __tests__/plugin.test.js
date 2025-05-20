@@ -71,8 +71,8 @@ describe("This here plugin,", () => {
     it("should create a new weekly with the selected tags", async () => {
       //set up environment
       const date = new Date("March 31 2025");
-      const weekNumber = plugin.getWeekOfDate(date);
-      const dayName = "Week " + weekNumber + " of 2025";
+      const weekNumber = plugin.utils.getWeekOfDate(date);
+      const noteName = "Week " + weekNumber + " of 2025";
       //make sure my plugin works with the selected tag
       const selectedTag = "daily-jots";
       const jotCount = plugin._state.weekJots.length;
@@ -97,6 +97,7 @@ describe("This here plugin,", () => {
       //test that uuid of new note matches uuid of jot
       const foundNote = await app.findNote({ uuid: newJot.uuid });
       expect(foundNote.uuid).toBe(newlyCreatedNote.uuid);
+      expect(foundNote.name).toEqual(noteName);
       //test that tags match
       expect(foundNote.tags).toContainEqual(selectedTag);
       //TODO test for multiple tags
@@ -116,7 +117,7 @@ describe("This here plugin,", () => {
       //set up environment
       const date = new Date("March 1 2025");
       const monthName = plugin._constants.monthNames[date.getMonth()];
-      const jotName = "Month of " + monthName + ", 2025";
+      const noteName = "Month of " + monthName + ", 2025";
       //make sure my plugin works with the selected tag
       const selectedTag = "daily-jots";
       const jotCount = plugin._state.monthJots.length;
@@ -141,6 +142,7 @@ describe("This here plugin,", () => {
       //test that uuid of new note matches uuid of jot
       const foundNote = await app.findNote({ uuid: newJot.uuid });
       expect(foundNote.uuid).toBe(newlyCreatedNote.uuid);
+      expect(foundNote.name).toEqual(noteName);
       //test that tags match
       expect(foundNote.tags).toContainEqual(selectedTag);
       //TODO test for multiple tags
@@ -207,7 +209,6 @@ describe("This here plugin,", () => {
     it("should display the appropriate task status bubbles", async () => {
       //set up environment
       const date = new Date("March 31 2025");
-      const dayName = "March 31st, 2025";
       const tags = ["daily-jots"];
 
       const tasks = plugin._constants.hasTasks;
@@ -330,4 +331,371 @@ Like this [list][^1]
       })
     });
   });
+
+  describe("with an existing weekly jot", () => {
+    var app;
+
+    beforeEach(() => {
+      app = mockApp();
+      plugin._state.weekJots = [];
+    });
+
+    it("shouldn't create a new note for the same date", async () => {
+
+      //set up environment
+      //pick a date
+      const date = new Date(2025, 2);
+      const weekNumber = plugin.utils.getWeekOfDate(date);
+      const selectedTag = "daily-jots";
+
+      app.settings[plugin._constants.settings.TAGS] = selectedTag;
+
+      //check initial amount of jots
+      const initialNotesCount = await app.filterNotes({ tags: selectedTag }).length;
+      expect(initialNotesCount).toBe(0);
+
+      //create jot with said date
+      let notesAfterCreationCount = 0;
+      await plugin.onEmbedCall(app, "navigate-week", date, true, weekNumber).then(() => {
+        notesAfterCreationCount = plugin._state.weekJots.length;
+        expect(notesAfterCreationCount).toBe(initialNotesCount + 1);
+      });
+
+      //attempt creating new jot
+      await plugin.onEmbedCall(app, "navigate-week", date, true, weekNumber);
+
+      //check if existing jots are different than before
+      const notesAfterFailedCreationCount = plugin._state.weekJots.length;
+      expect(notesAfterFailedCreationCount).toBe(notesAfterCreationCount);
+    });
+
+    it("shouldn't create a new note if shift wasn't pressed", async () => {
+
+      //set up environment
+      //pick a date
+      const date = new Date("March 31 2025");
+      const weekNumber = plugin.utils.getWeekOfDate(date);
+      const selectedTag = "daily-jots";
+
+      app.settings[plugin._constants.settings.TAGS] = selectedTag;
+
+      //check initial amount of jots
+      const initialNotesCount = await app.filterNotes({ tags: selectedTag }).length;
+      expect(plugin._state.weekJots.length).toBe(initialNotesCount);
+
+      //attempt to create jot with shift not pressed
+      await plugin.onEmbedCall(app, "navigate-week", date, false, weekNumber).then(() => {
+        expect(plugin._state.weekJots.length).toBe(initialNotesCount);
+      });
+    });
+
+    it("should display the appropriate task status bubbles", async () => {
+      //set up environment
+      const date = new Date("March 31 2025");
+      const tags = ["daily-jots"];
+
+      const tasks = plugin._constants.hasTasks;
+
+      const newNotesWithContent = [
+        {
+          name: "May 6th, 2025",
+          tags: ["daily-jots"],
+          expectation: tasks.SOME,
+          content: `
+- [ ] Task for blue bubble with no completed tasks<!-- {"uuid":"e97074fb-d079-4138-b01e-72fb0929d19a"} -->
+
+- [ ] Second task<!-- {"uuid":"a3fcf853-ee84-4087-9dc8-f29f83bdbc32"} -->`
+        },
+        {
+          name: "May 7th, 2025",
+          tags: ["daily-jots"],
+          expectation: tasks.DONE,
+          content: `
+### Other note content
+
+Like this [list][^1] 
+
+- Item 1
+
+- Item 2
+
+
+---
+
+\
+
+\
+
+# Completed tasks<!-- {"omit":true} -->
+
+- [x] Task for green bubble<!-- {"uuid":"0b55e927-77bb-400b-96d4-b16cf9259fff"} -->
+
+[^1]: [list]()
+
+    And this rich footnote
+`
+        },
+        {
+          name: "May 8th, 2025",
+          tags: ["daily-jots"],
+          expectation: tasks.NONE,
+          content: `
+Note for no bubble
+
+### Other note content
+
+Like this [list][^1] 
+
+- Item 1
+
+- Item 2
+
+
+---
+
+\
+
+\
+
+[^1]: [list]()
+
+    And this rich footnote
+
+`
+        },
+        {
+          name: "May 9th, 2025",
+          tags: ["daily-jots"],
+          expectation: tasks.SOME,
+          content: `
+- [ ] Task for blue bubble<!-- {"uuid":"c1647485-4573-4bb7-9607-0cd3978a1c68"} -->
+
+### Other note content
+
+Like this [list][^1] 
+
+- Item 1
+
+- Item 2
+
+
+---
+
+\
+
+# Completed tasks<!-- {"omit":true} -->
+
+- [x] Completed task for blue bubble<!-- {"uuid":"42fcea1a-7abe-478a-864d-9bfec1d72cff"} -->
+
+[^1]: [list]()
+
+    And this rich footnote
+`
+        },
+      ];
+
+      let expectations = [];
+      //create four notes
+      newNotesWithContent.forEach((note) => {
+        app.createNote(note.name, tags).then((createdNote) => {
+          //change content of the notes
+          app.replaceNoteContent(createdNote, note.content);
+          expectations = [...expectations, { uuid: createdNote.uuid, expectation: note.expectation }];
+        });
+      })
+
+      //refresh the jots list
+      plugin.onEmbedCall(app, "fetch", date, false).then(() => {
+        //check status of hasTasks fields in the _state.jots list
+        plugin._state.weekJots.forEach(({ uuid, hasTasks }) => {
+          const expct = expectations.find(({ expId }) => (uuid == expId));
+          expect(hasTasks).toBe(expct.hasTasks);
+        });
+      })
+    });
+  });
+
+  describe("with an existing monthly jot", () => {
+    var app;
+
+    beforeEach(() => {
+      app = mockApp();
+      plugin._state.monthJots = [];
+    });
+
+    it("shouldn't create a new note for the same date", async () => {
+
+      //set up environment
+      //pick a date
+      const date = new Date(2025, 2);
+      const selectedTag = "daily-jots";
+
+      app.settings[plugin._constants.settings.TAGS] = selectedTag;
+
+      //check initial amount of jots
+      const initialNotesCount = await app.filterNotes({ tags: selectedTag }).length;
+      expect(initialNotesCount).toBe(0);
+
+      //create jot with said date
+      let notesAfterCreationCount = 0;
+      await plugin.onEmbedCall(app, "navigate-month", date, true).then(() => {
+        notesAfterCreationCount = plugin._state.monthJots.length;
+        expect(notesAfterCreationCount).toBe(initialNotesCount + 1);
+      });
+
+      //attempt creating new jot
+      await plugin.onEmbedCall(app, "navigate-month", date, true);
+
+      //check if existing jots are different than before
+      const notesAfterFailedCreationCount = plugin._state.monthJots.length;
+      expect(notesAfterFailedCreationCount).toBe(notesAfterCreationCount);
+    });
+
+    it("shouldn't create a new note if shift wasn't pressed", async () => {
+
+      //set up environment
+      //pick a date
+      const date = new Date(2025, 2);
+      const monthName = plugin._constants.monthNames[date.getMonth()];
+      const noteName = "Month of" + monthName + ", " + date.getFullYear();
+      const selectedTag = "daily-jots";
+
+      app.settings[plugin._constants.settings.TAGS] = selectedTag;
+
+      //check initial amount of jots
+      const initialNotesCount = await app.filterNotes({ tags: selectedTag }).length;
+      expect(plugin._state.monthJots.length).toBe(initialNotesCount);
+
+      //attempt to create jot with shift not pressed
+      await plugin.onEmbedCall(app, "navigate-month", date, false).then(() => {
+        expect(plugin._state.monthJots.length).toBe(initialNotesCount);
+      });
+    });
+
+    it("should display the appropriate task status bubbles", async () => {
+      //set up environment
+      const date = new Date(2025, 2);
+      const tags = ["daily-jots"];
+
+      const tasks = plugin._constants.hasTasks;
+
+      const newNotesWithContent = [
+        {
+          name: "May 6th, 2025",
+          tags: ["daily-jots"],
+          expectation: tasks.SOME,
+          content: `
+- [ ] Task for blue bubble with no completed tasks<!-- {"uuid":"e97074fb-d079-4138-b01e-72fb0929d19a"} -->
+
+- [ ] Second task<!-- {"uuid":"a3fcf853-ee84-4087-9dc8-f29f83bdbc32"} -->`
+        },
+        {
+          name: "May 7th, 2025",
+          tags: ["daily-jots"],
+          expectation: tasks.DONE,
+          content: `
+### Other note content
+
+Like this [list][^1] 
+
+- Item 1
+
+- Item 2
+
+
+---
+
+\
+
+\
+
+# Completed tasks<!-- {"omit":true} -->
+
+- [x] Task for green bubble<!-- {"uuid":"0b55e927-77bb-400b-96d4-b16cf9259fff"} -->
+
+[^1]: [list]()
+
+    And this rich footnote
+`
+        },
+        {
+          name: "May 8th, 2025",
+          tags: ["daily-jots"],
+          expectation: tasks.NONE,
+          content: `
+Note for no bubble
+
+### Other note content
+
+Like this [list][^1] 
+
+- Item 1
+
+- Item 2
+
+
+---
+
+\
+
+\
+
+[^1]: [list]()
+
+    And this rich footnote
+
+`
+        },
+        {
+          name: "May 9th, 2025",
+          tags: ["daily-jots"],
+          expectation: tasks.SOME,
+          content: `
+- [ ] Task for blue bubble<!-- {"uuid":"c1647485-4573-4bb7-9607-0cd3978a1c68"} -->
+
+### Other note content
+
+Like this [list][^1] 
+
+- Item 1
+
+- Item 2
+
+
+---
+
+\
+
+# Completed tasks<!-- {"omit":true} -->
+
+- [x] Completed task for blue bubble<!-- {"uuid":"42fcea1a-7abe-478a-864d-9bfec1d72cff"} -->
+
+[^1]: [list]()
+
+    And this rich footnote
+`
+        },
+      ];
+
+      let expectations = [];
+      //create four notes
+      newNotesWithContent.forEach((note) => {
+        app.createNote(note.name, tags).then((createdNote) => {
+          //change content of the notes
+          app.replaceNoteContent(createdNote, note.content);
+          expectations = [...expectations, { uuid: createdNote.uuid, expectation: note.expectation }];
+        });
+      })
+
+      //refresh the jots list
+      plugin.onEmbedCall(app, "fetch", date, false).then(() => {
+        //check status of hasTasks fields in the _state.jots list
+        plugin._state.monthJots.forEach(({ uuid, hasTasks }) => {
+          const expct = expectations.find(({ expId }) => (uuid == expId));
+          expect(hasTasks).toBe(expct.hasTasks);
+        });
+      })
+    });
+  });
+
 });
